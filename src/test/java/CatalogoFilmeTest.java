@@ -139,24 +139,96 @@ public class CatalogoFilmeTest {
         );
     }
 
-
     @Test
-    public void testExcluirFilme() {
-        driver.get("https://catalogo-filme-rosy.vercel.app/Apagar");
+    public void testCriarEExcluirFilme() {
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
+        // 1. Acessa a página criar
+        driver.get("https://catalogo-filme-rosy.vercel.app/Criar");
+
+        // 2. Cria um filme teste com dados unico
+        String tituloFilme = "AutoTeste_" + System.currentTimeMillis();
+        String genero = "Teste";
+        String ano = "2025";
+
+        // 3. Aqui vai preencher os cmapos
+        WebElement campoNome = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("nome")));
+        driver.findElement(By.name("genero")).sendKeys(genero);
+        driver.findElement(By.name("ano")).sendKeys(ano);
+        campoNome.sendKeys(tituloFilme);
+
+        // 4. Manda o filme pro cadastro
+        WebElement botaoCriar = driver.findElement(By.cssSelector("button.btn-success[type='submit']"));
+        botaoCriar.click();
+
+        // 5. Vai direcionar para a pagina home
+        wait.until(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"));
+        driver.navigate().refresh();
+
+        // 6. Aguarda e busca o link que contém o nome do filme e extrai o ID do texto criado
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("a.text-decoration-none[href^='/Ler/']")));
+
+        List<WebElement> links = driver.findElements(By.cssSelector("a.text-decoration-none[href^='/Ler/']"));
+        String idFilmeCriado = null;
+
+        for (WebElement link : links) {
+            WebElement divFilme = link.findElement(By.tagName("div"));
+            String textoDiv = divFilme.getText();
+
+            if (textoDiv.contains(tituloFilme)) {
+                int idxIdStart = textoDiv.indexOf("Id: ") + 4; //vai pular 4 caracteres para byuscar apenas o Id
+                int idxIdEnd = textoDiv.indexOf(" Nome:");
+                if (idxIdStart >= 4 && idxIdEnd > idxIdStart) {
+                    idFilmeCriado = textoDiv.substring(idxIdStart, idxIdEnd).trim();
+                }
+                break;
+            }
+        }
+
+        assertNotNull(idFilmeCriado, "ID do filme criado não foi encontrado!");
+        System.out.println("Filme criado com ID: " + idFilmeCriado);
+
+        // 7. Acessa a página de apagar com o ID
+        driver.get("https://catalogo-filme-rosy.vercel.app/Apagar/" + idFilmeCriado);
+
+        // 8. Aguarda o campo do ID no formulário de procura estar visível
         WebElement campoId = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("idFilme")));
-        campoId.clear();
-        campoId.sendKeys("3");
 
-        WebElement botaoProcurar = driver.findElement(By.xpath("//button[text()='Procurar']"));
+        // 9. Verifica se o campo já contém o ID esperado
+        String valorCampoId = campoId.getAttribute("value");
+        assertEquals(idFilmeCriado, valorCampoId, "O campo ID não contém o ID esperado");
+
+        // 10. Clica no botão "Procurar"
+        WebElement botaoProcurar = driver.findElement(By.cssSelector("button.btn-primary[type='submit']"));
         botaoProcurar.click();
 
-        wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//h1[text()='Apagar Filme']")));
-        WebElement btnApagar = driver.findElement(By.xpath("//button[text()='Apagar']"));
-        btnApagar.click();
+        // 11. Aguarda a tela de exclusão carregar
+        wait.until(ExpectedConditions.textToBePresentInElementLocated(By.tagName("h1"), "Apagar Filme"));
 
-        WebElement confirmacao = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                By.xpath("//*[contains(text(), 'sucesso') or contains(text(), 'apagado')]")));
-        assertTrue(confirmacao.getText().toLowerCase().contains("sucesso"));
+        // 12. Clica no botão "Apagar"
+        WebElement botaoApagar = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("button.btn-danger[type='submit']")));
+        botaoApagar.click();
+
+        // 13. Aguarda o alert do navegador aparecer e o aceita
+        Alert alert = wait.until(ExpectedConditions.alertIsPresent());
+        assertTrue(alert.getText().toLowerCase().contains("sucesso"), "Mensagem do alert não confirma sucesso.");
+        alert.accept();
     }
+
+    @Test
+    public void testExcluirSemID_DeveFalhar() {
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+
+        // Acessa a URL de exclusão sem fornecer ID (propositalmente inválida)
+        driver.get("https://catalogo-filme-rosy.vercel.app/Apagar");
+
+        // Espera por algum título da página de exclusão (que não vai aaparecer)
+        // Aqui o teste deve falhar porque a página real precisa de um ID
+        wait.until(ExpectedConditions.visibilityOfElementLocated(
+                By.xpath("//h1[text()='Apagar Filme']")));
+
+        // Se caso carregar que nao vai, precisa colocar o id manualmente
+        fail("A página de exclusão não deveria carregar sem um ID.");
+    }
+
 }
