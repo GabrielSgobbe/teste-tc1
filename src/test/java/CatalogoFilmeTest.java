@@ -35,27 +35,49 @@ public class CatalogoFilmeTest {
     class PaginaInicialTests {
 
         @Test
-        @Tag("pagina")
-        @DisplayName("Deve conter 'catalogo' no título da página")
-        public void testPaginaInicialTitulo() {
+        @Tag("interface")
+        @DisplayName("Botões Editar e Excluir só aparecem quando há filmes cadastrados")
+        public void testBotoesEditarExcluirAparecemComFilmes() {
             driver.get("https://catalogo-filme-rosy.vercel.app/");
-            String titulo = driver.getTitle();
-            assertTrue(titulo.toLowerCase().contains("catalogo"), "Título da página deve conter 'catalogo'");
+            wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
+
+            List<WebElement> filmes = driver.findElements(By.cssSelector("a.text-decoration-none[href^='/Ler/']"));
+
+            if (filmes.isEmpty()) {
+                // Se não há filmes, os botões Editar e Excluir não devem estar presentes
+                List<WebElement> botoesEditar = driver.findElements(By.cssSelector("a[href^='/Alterar/']"));
+                List<WebElement> botoesExcluir = driver.findElements(By.cssSelector("a[href^='/Apagar/']"));
+
+                assertTrue(botoesEditar.isEmpty(), "Não deveria haver botão Editar sem filmes.");
+                assertTrue(botoesExcluir.isEmpty(), "Não deveria haver botão Excluir sem filmes.");
+            } else {
+                // Se há filmes, os botões Editar e Excluir devem aparecer ao menos uma vez
+                List<WebElement> botoesEditar = driver.findElements(By.cssSelector("a[href^='/Alterar/']"));
+                List<WebElement> botoesExcluir = driver.findElements(By.cssSelector("a[href^='/Apagar/']"));
+
+                assertFalse(botoesEditar.isEmpty(), "Botões Editar deveriam aparecer com filmes cadastrados.");
+                assertFalse(botoesExcluir.isEmpty(), "Botões Excluir deveriam aparecer com filmes cadastrados.");
+            }
         }
 
         @Test
-        @Tag("pagina")
-        @DisplayName("Deve listar pelo menos um filme com título visível")
-        public void testListaFilmesVisivel() {
-            driver.get("https://catalogo-filme-rosy.vercel.app/");
-            List<WebElement> filmes = driver.findElements(By.cssSelector(".card"));
-            assertFalse(filmes.isEmpty(), "Deve haver pelo menos um filme listado na página inicial");
+        @Tag("rota")
+        @DisplayName("Não deve permitir acessar rota de alteração sem ID")
+        public void testAcessarAlterarSemId() {
+            driver.get("https://catalogo-filme-rosy.vercel.app/Alterar/");
 
-            WebElement primeiroFilme = filmes.get(0);
-            WebElement tituloFilme = primeiroFilme.findElement(By.cssSelector(".card-title"));
-            assertTrue(tituloFilme.isDisplayed(), "Título do filme deve estar visível");
-            assertFalse(tituloFilme.getText().isEmpty(), "Título do filme não deve estar vazio");
+            WebElement body = wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
+            String textoPagina = body.getText().toLowerCase();
+
+            assertTrue(
+                    textoPagina.contains("erro")
+                            || textoPagina.contains("not found")
+                            || textoPagina.contains("página não encontrada")
+                            || textoPagina.isEmpty(),
+                    "A aplicação deveria exibir uma mensagem de erro ou redirecionar ao acessar rota dinâmica sem ID."
+            );
         }
+
     }
 
     @Nested
@@ -101,6 +123,36 @@ public class CatalogoFilmeTest {
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("nome")));
             assertTrue(driver.getCurrentUrl().contains("/Criar"), "Filme com ano inválido não deveria ser criado.");
         }
+
+        @Test
+        @Tag("criacao")
+        @DisplayName("Não deve criar filme com Letra no Ano ")
+        public void testCriarFilmeComLetraAno() {
+            driver.get("https://catalogo-filme-rosy.vercel.app/Criar");
+
+            WebElement campoNome = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("nome")));
+            WebElement campoGenero = driver.findElement(By.name("genero"));
+            WebElement campoAno = driver.findElement(By.name("ano"));
+
+            campoNome.sendKeys("Filme com Erro no Ano");
+            campoGenero.sendKeys("Drama");
+
+            // Só é permitido digitar 1 letra, o navegador corta
+            campoAno.sendKeys("a");
+
+            // Clica no botão de envio
+            driver.findElement(By.cssSelector("button.btn-success[type='submit']")).click();
+
+            // Aguarda um pouco e confirma que não redirecionou
+            try {
+                WebDriverWait shortWait = new WebDriverWait(driver, Duration.ofSeconds(2));
+                shortWait.until(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"));
+                fail("Deveria impedir o envio do formulário com letra no campo de ano.");
+            } catch (TimeoutException e) {
+                // OK: o formulário não foi enviado, continuou na página de criação
+                assertTrue(driver.getCurrentUrl().contains("/Criar"), "Deveria permanecer na página de criação com erro no campo.");
+            }
+        }
     }
 
     @Nested
@@ -111,11 +163,11 @@ public class CatalogoFilmeTest {
         @Tag("edicao")
         @DisplayName("Deve editar um filme existente com sucesso")
         public void testEditarFilme() {
-            driver.get("https://catalogo-filme-rosy.vercel.app/Alterar");
+            driver.get("https://catalogo-filme-rosy.vercel.app/Alterar/2"); //so funciona se colocar o id manual
 
             WebElement campoId = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("idFilme")));
             campoId.clear();
-            campoId.sendKeys("2");
+            campoId.sendKeys("2"); ;// aqui tbm o id do item
 
             wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[contains(text(), 'Procurar')]"))).click();
 
@@ -132,13 +184,25 @@ public class CatalogoFilmeTest {
 
             driver.findElement(By.xpath("//button[contains(text(), 'Alterar')]")).click();
 
-            WebElement corpo = wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
-            assertTrue(corpo.getText().toLowerCase().contains("sucesso") || corpo.getText().toLowerCase().contains("editado"));
+
+            // Espera até que o alert esteja presente
+            Alert alert = wait.until(ExpectedConditions.alertIsPresent());
+
+            // Pega o texto do alert
+            String textoAlert = alert.getText().toLowerCase();
+            System.out.println("Texto do alert: " + textoAlert);
+
+            // Verifica se o texto contém as palavras esperadas
+            assertTrue(textoAlert.contains("sucesso") || textoAlert.contains("editado"));
+
+            // Fecha o alert clicando no OK
+            alert.accept();
+
         }
 
         @Test
         @Tag("edicao")
-        @DisplayName("Não deve editar filme com ID inexistente")
+        @DisplayName("Não deve editar filme com ID inexistente") // erro no teste pq nao tem mensagem de id nao encontrado só um 404
         public void testAlterarFilmeComIdInexistente() {
             driver.get("https://catalogo-filme-rosy.vercel.app/Alterar/99999");
 
@@ -161,7 +225,7 @@ public class CatalogoFilmeTest {
         @Tag("exclusao")
         @DisplayName("Deve criar e excluir um filme com sucesso")
         public void testCriarEExcluirFilme() {
-            driver.get("https://catalogo-filme-rosy.vercel.app/Criar");
+            driver.get("https://catalogo-filme-rosy.vercel.app/Criar"); //forma de criar e editar um filme
 
             String tituloFilme = "AutoTeste_" + System.currentTimeMillis();
             driver.findElement(By.name("nome")).sendKeys(tituloFilme);
@@ -212,12 +276,15 @@ public class CatalogoFilmeTest {
         @Tag("validacao")
         @DisplayName("Não deve permitir exclusão sem fornecer ID")
         public void testExcluirSemID_DeveFalhar() {
-            driver.get("https://catalogo-filme-rosy.vercel.app/Apagar");
+            driver.get("https://catalogo-filme-rosy.vercel.app/Apagar/");  //nao vai permitir pois nao tem essa rota, somente se tiver item cadastrado
 
             wait.until(ExpectedConditions.visibilityOfElementLocated(
                     By.xpath("//h1[text()='Apagar Filme']")));
 
             fail("A página de exclusão não deveria carregar sem um ID.");
         }
+
+
+
     }
 }
