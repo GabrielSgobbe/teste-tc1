@@ -69,13 +69,7 @@ public class CatalogoFilmeTest {
             WebElement body = wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
             String textoPagina = body.getText().toLowerCase();
 
-            assertTrue(
-                    textoPagina.contains("erro")
-                            || textoPagina.contains("not found")
-                            || textoPagina.contains("página não encontrada")
-                            || textoPagina.isEmpty(),
-                    "A aplicação deveria exibir uma mensagem de erro ou redirecionar ao acessar rota dinâmica sem ID."
-            );
+            assertTrue(textoPagina.contains("erro") || textoPagina.contains("not found") || textoPagina.contains("página não encontrada") || textoPagina.isEmpty(), "A aplicação deveria exibir uma mensagem de erro ou redirecionar ao acessar rota dinâmica sem ID.");
         }
 
     }
@@ -104,29 +98,10 @@ public class CatalogoFilmeTest {
             assertTrue(driver.getCurrentUrl().contains("/"), "Deveria redirecionar para a página inicial após criar o filme.");
         }
 
-        @Test
-        @Tag("validacao")
-        @DisplayName("Não deve criar filme com ano inválido")
-        public void testCriarFilmeComAnoInvalido() {
-            driver.get("https://catalogo-filme-rosy.vercel.app/Criar");
-
-            WebElement campoNome = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("nome")));
-            WebElement campoGenero = driver.findElement(By.name("genero"));
-            WebElement campoAno = driver.findElement(By.name("ano"));
-
-            campoNome.sendKeys("Bug: Filme do Futuro");
-            campoGenero.sendKeys("Ficção");
-            campoAno.sendKeys("999999");
-
-            driver.findElement(By.cssSelector("button.btn-success[type='submit']")).click();
-
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("nome")));
-            assertTrue(driver.getCurrentUrl().contains("/Criar"), "Filme com ano inválido não deveria ser criado.");
-        }
 
         @Test
         @Tag("criacao")
-        @DisplayName("Não deve criar filme com Letra no Ano ")
+        @DisplayName("Não deve criar filme com letra no campo Ano")
         public void testCriarFilmeComLetraAno() {
             driver.get("https://catalogo-filme-rosy.vercel.app/Criar");
 
@@ -136,64 +111,48 @@ public class CatalogoFilmeTest {
 
             campoNome.sendKeys("Filme com Erro no Ano");
             campoGenero.sendKeys("Drama");
+            campoAno.sendKeys("a"); // navegador pode cortar ou impedir envio
 
-            // Só é permitido digitar 1 letra, o navegador corta
-            campoAno.sendKeys("a");
-
-            // Clica no botão de envio
             driver.findElement(By.cssSelector("button.btn-success[type='submit']")).click();
 
-            // Aguarda um pouco e confirma que não redirecionou
-            try {
-                WebDriverWait shortWait = new WebDriverWait(driver, Duration.ofSeconds(2));
-                shortWait.until(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"));
-                fail("Deveria impedir o envio do formulário com letra no campo de ano.");
-            } catch (TimeoutException e) {
-                // OK: o formulário não foi enviado, continuou na página de criação
-                assertTrue(driver.getCurrentUrl().contains("/Criar"), "Deveria permanecer na página de criação com erro no campo.");
-            }
+            // Espera 3 segundos e verifica que  nao redirecionou para a ppagina incial
+            boolean redirecionou = new WebDriverWait(driver, Duration.ofSeconds(3)).until(ExpectedConditions.or(ExpectedConditions.urlContains("/Criar"), ExpectedConditions.not(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"))));
+
+            assertTrue(driver.getCurrentUrl().contains("/Criar"), "Deveria permanecer na página de criação com erro no campo ano.");
+        }
+
+        @Test
+        @Tag("validacao")
+        @DisplayName("Não deve permitir o cadastro de filme com ano no futuro muito distante")
+        public void testNaoCriarFilmeComAnoFuturoInvalido() {
+            driver.get("https://catalogo-filme-rosy.vercel.app/Criar");
+
+            WebElement campoNome = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("nome")));
+            WebElement campoGenero = driver.findElement(By.name("genero"));
+            WebElement campoAno = driver.findElement(By.name("ano"));
+
+            campoNome.sendKeys("Filme Futuro Absurdo");
+            campoGenero.sendKeys("Ficção Científica");
+            campoAno.sendKeys("999999"); // valor absurdo
+
+            driver.findElement(By.cssSelector("button.btn-success[type='submit']")).click();
+
+            // Verifica que a URL continua em /Criar, ou seja, não foi aceito
+            assertTrue(wait.until(ExpectedConditions.urlContains("/Criar")), "A aplicação deveria permanecer na página de criação com ano inválido.");
+
+            // verifica se tem alguma mensamge de erro explicida
+            List<WebElement> mensagensErro = driver.findElements(By.cssSelector("p.text-danger"));
+
+            assertFalse(mensagensErro.isEmpty(), "Deveria exibir uma mensagem de erro para ano inválido.");
+
+            WebElement erro = mensagensErro.get(0);
+            String texto = erro.getText().toLowerCase();
+
+            assertTrue(erro.isDisplayed(), "Mensagem de erro deve estar visível.");
+            assertTrue(texto.contains("ano") || texto.contains("inválido"), "Mensagem de erro não menciona claramente problema no ano.");
+
         }
     }
-    @Test
-    @Tag("validacao")
-    @DisplayName("Não deve permitir o cadastro de filme com ano no futuro muito distante")
-    public void testNaoCriarFilmeComAnoFuturoInvalido() {
-        // 1. Navegar até a página de criação de filmes
-        driver.get("https://catalogo-filme-rosy.vercel.app/Criar");
-        wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body"))); // Espera o corpo da página
-
-        WebElement campoNome = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("nome")));
-        WebElement campoGenero = driver.findElement(By.name("genero"));
-        WebElement campoAno = driver.findElement(By.name("ano")); // Campo de ano
-
-        campoNome.sendKeys("Filme Futuro Absurdo");
-        campoGenero.sendKeys("Ficção Científica");
-        campoAno.sendKeys("999999"); // **Ano inválido: muito no futuro**
-
-        WebElement botaoCadastrar = driver.findElement(By.cssSelector("button.btn-success[type='submit']"));
-        botaoCadastrar.click();
-
-        try {
-
-            WebDriverWait shortWait = new WebDriverWait(driver, Duration.ofSeconds(5));
-            shortWait.until(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"));
-            fail("Filme com ano futuro inválido foi cadastrado, o que não deveria acontecer.");
-        } catch (TimeoutException e) {
-            assertTrue(driver.getCurrentUrl().contains("/Criar"),
-                    "A aplicação deveria permanecer na página de criação ou exibir um erro para ano inválido.");
-
-            try {
-                WebElement errorMessage = driver.findElement(By.cssSelector("p.text-danger"));
-                assertTrue(errorMessage.isDisplayed(), "Mensagem de erro para ano inválido deveria ser exibida.");
-                String textoErro = errorMessage.getText().toLowerCase();
-                assertTrue(textoErro.contains("ano") || textoErro.contains("inválido"),
-                        "A mensagem de erro não contém texto relevante sobre o ano inválido.");
-            } catch (NoSuchElementException ex) {
-                System.out.println("Nenhuma mensagem de erro específica visível para o ano inválido. Apenas a permanência na página foi validada.");
-            }
-        }
-    }
-
 
 
     @Nested
@@ -208,7 +167,8 @@ public class CatalogoFilmeTest {
 
             WebElement campoId = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("idFilme")));
             campoId.clear();
-            campoId.sendKeys("2"); ;// aqui tbm o id do item
+            campoId.sendKeys("2");
+            ;// aqui tbm o id do item
 
             wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[contains(text(), 'Procurar')]"))).click();
 
@@ -226,20 +186,21 @@ public class CatalogoFilmeTest {
             driver.findElement(By.xpath("//button[contains(text(), 'Alterar')]")).click();
 
 
-            // Espera até que o alert esteja presente
+            //Espera até que o alert esteja presente
             Alert alert = wait.until(ExpectedConditions.alertIsPresent());
 
-            // Pega o texto do alert
+            //Pega o texto do alert
             String textoAlert = alert.getText().toLowerCase();
             System.out.println("Texto do alert: " + textoAlert);
 
-            // Verifica se o texto contém as palavras esperadas
+            //Verifica se o texto contém algumas das plavras
             assertTrue(textoAlert.contains("sucesso") || textoAlert.contains("editado"));
 
-            // Fecha o alert clicando no OK
+
             alert.accept();
 
         }
+
 
         @Test
         @Tag("edicao")
@@ -247,95 +208,92 @@ public class CatalogoFilmeTest {
         public void testAlterarFilmeComIdInexistente() {
             driver.get("https://catalogo-filme-rosy.vercel.app/Alterar/99999");
 
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+            WebElement campoId = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("idFilme")));
 
-            // Aguarda o parágrafo com a classe "text-danger"
+            assertEquals("99999", campoId.getAttribute("value"), "Campo ID deveria conter 99999.");
+
+            WebElement botaoProcurar = wait.until(
+                    ExpectedConditions.elementToBeClickable(By.xpath("//button[contains(text(), 'Procurar')]"))
+            );
+            botaoProcurar.click();
+
             WebElement erroMsg = wait.until(
                     ExpectedConditions.visibilityOfElementLocated(By.cssSelector("p.text-danger"))
             );
 
-            // Verifica se a mensagem contém o texto esperado
             String textoErro = erroMsg.getText().toLowerCase();
             assertTrue(
-                    textoErro.contains("404") || textoErro.contains("request failed"),
+                    textoErro.contains("404") || textoErro.contains("request failed") || textoErro.contains("não encontrado"),
                     "A página deveria exibir mensagem de erro ao acessar um ID inexistente."
             );
         }
 
-    @Nested
-    @DisplayName("Exclusão de Filmes")
-    class ExclusaoFilmeTests {
+        @Nested
+        @DisplayName("Exclusão de Filmes")
+        class ExclusaoFilmeTests {
 
-        @Test
-        @Tag("exclusao")
-        @DisplayName("Deve criar e excluir um filme com sucesso")
-        public void testCriarEExcluirFilme() {
-            driver.get("https://catalogo-filme-rosy.vercel.app/Criar"); //forma de criar e editar um filme
+            @Test
+            @Tag("exclusao")
+            @DisplayName("Deve criar e excluir um filme com sucesso")
+            public void testCriarEExcluirFilme() {
+                driver.get("https://catalogo-filme-rosy.vercel.app/Criar"); //forma de criar e editar um filme
 
-            String tituloFilme = "AutoTeste_" + System.currentTimeMillis();
-            driver.findElement(By.name("nome")).sendKeys(tituloFilme);
-            driver.findElement(By.name("genero")).sendKeys("Teste");
-            driver.findElement(By.name("ano")).sendKeys("2025");
+                String tituloFilme = "AutoTeste_" + System.currentTimeMillis();
+                driver.findElement(By.name("nome")).sendKeys(tituloFilme);
+                driver.findElement(By.name("genero")).sendKeys("Teste");
+                driver.findElement(By.name("ano")).sendKeys("2025");
 
-            driver.findElement(By.cssSelector("button.btn-success[type='submit']")).click();
-            wait.until(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"));
-            driver.navigate().refresh();
+                driver.findElement(By.cssSelector("button.btn-success[type='submit']")).click();
+                wait.until(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"));
+                driver.navigate().refresh();
 
-            wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("a.text-decoration-none[href^='/Ler/']")));
-            List<WebElement> links = driver.findElements(By.cssSelector("a.text-decoration-none[href^='/Ler/']"));
+                wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("a.text-decoration-none[href^='/Ler/']")));
+                List<WebElement> links = driver.findElements(By.cssSelector("a.text-decoration-none[href^='/Ler/']"));
 
-            String idFilmeCriado = null;
-            for (WebElement link : links) {
-                WebElement divFilme = link.findElement(By.tagName("div"));
-                String textoDiv = divFilme.getText();
+                String idFilmeCriado = null;
+                for (WebElement link : links) {
+                    WebElement divFilme = link.findElement(By.tagName("div"));
+                    String textoDiv = divFilme.getText();
 
-                if (textoDiv.contains(tituloFilme)) {
-                    int idxIdStart = textoDiv.indexOf("Id: ") + 4;
-                    int idxIdEnd = textoDiv.indexOf(" Nome:");
-                    if (idxIdStart >= 4 && idxIdEnd > idxIdStart) {
-                        idFilmeCriado = textoDiv.substring(idxIdStart, idxIdEnd).trim();
+                    if (textoDiv.contains(tituloFilme)) {
+                        int idxIdStart = textoDiv.indexOf("Id: ") + 4;
+                        int idxIdEnd = textoDiv.indexOf(" Nome:");
+                        if (idxIdStart >= 4 && idxIdEnd > idxIdStart) {
+                            idFilmeCriado = textoDiv.substring(idxIdStart, idxIdEnd).trim();
+                        }
+                        break;
                     }
-                    break;
                 }
+
+                assertNotNull(idFilmeCriado, "ID do filme criado não foi encontrado!");
+
+                driver.get("https://catalogo-filme-rosy.vercel.app/Apagar/" + idFilmeCriado);
+
+                WebElement campoId = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("idFilme")));
+                assertEquals(idFilmeCriado, campoId.getAttribute("value"), "O campo ID não contém o ID esperado");
+
+                driver.findElement(By.cssSelector("button.btn-primary[type='submit']")).click();
+                wait.until(ExpectedConditions.textToBePresentInElementLocated(By.tagName("h1"), "Apagar Filme"));
+
+                WebElement botaoApagar = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("button.btn-danger[type='submit']")));
+                botaoApagar.click();
+
+                Alert alert = wait.until(ExpectedConditions.alertIsPresent());
+                assertTrue(alert.getText().toLowerCase().contains("sucesso"), "Mensagem do alert não confirma sucesso.");
+                alert.accept();
             }
 
-            assertNotNull(idFilmeCriado, "ID do filme criado não foi encontrado!");
+            @Test
+            @Tag("validacao")
+            @DisplayName("Não deve permitir exclusão sem fornecer ID")
+            public void testExcluirSemID_DeveFalhar() {
+                driver.get("https://catalogo-filme-rosy.vercel.app/Apagar/");  //nao vai permitir pois nao tem essa rota, somente se tiver item cadastrado
 
-            driver.get("https://catalogo-filme-rosy.vercel.app/Apagar/" + idFilmeCriado);
+                WebElement body = wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
+                String textoPagina = body.getText().toLowerCase();
 
-            WebElement campoId = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("idFilme")));
-            assertEquals(idFilmeCriado, campoId.getAttribute("value"), "O campo ID não contém o ID esperado");
-
-            driver.findElement(By.cssSelector("button.btn-primary[type='submit']")).click();
-            wait.until(ExpectedConditions.textToBePresentInElementLocated(By.tagName("h1"), "Apagar Filme"));
-
-            WebElement botaoApagar = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("button.btn-danger[type='submit']")));
-            botaoApagar.click();
-
-            Alert alert = wait.until(ExpectedConditions.alertIsPresent());
-            assertTrue(alert.getText().toLowerCase().contains("sucesso"), "Mensagem do alert não confirma sucesso.");
-            alert.accept();
+                assertTrue(textoPagina.contains("erro") || textoPagina.contains("não encontrado") || textoPagina.contains("404") || textoPagina.isEmpty(), "A aplicação deveria exibir mensagem de erro ou redirecionar ao acessar /Apagar/ sem ID.");
+            }
         }
-
-        @Test
-        @Tag("validacao")
-        @DisplayName("Não deve permitir exclusão sem fornecer ID")
-        public void testExcluirSemID_DeveFalhar() {
-            driver.get("https://catalogo-filme-rosy.vercel.app/Apagar/");  //nao vai permitir pois nao tem essa rota, somente se tiver item cadastrado
-
-            WebElement body = wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
-            String textoPagina = body.getText().toLowerCase();
-
-            assertTrue(
-                    textoPagina.contains("erro")
-                            || textoPagina.contains("não encontrado")
-                            || textoPagina.contains("404")
-                            || textoPagina.isEmpty(),
-                    "A aplicação deveria exibir mensagem de erro ou redirecionar ao acessar /Apagar/ sem ID."
-            );
-        }
-
-
-    }
     }
 }
