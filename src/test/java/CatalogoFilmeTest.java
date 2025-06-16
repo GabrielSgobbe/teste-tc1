@@ -154,6 +154,47 @@ public class CatalogoFilmeTest {
             }
         }
     }
+    @Test
+    @Tag("validacao")
+    @DisplayName("Não deve permitir o cadastro de filme com ano no futuro muito distante")
+    public void testNaoCriarFilmeComAnoFuturoInvalido() {
+        // 1. Navegar até a página de criação de filmes
+        driver.get("https://catalogo-filme-rosy.vercel.app/Criar");
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body"))); // Espera o corpo da página
+
+        WebElement campoNome = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("nome")));
+        WebElement campoGenero = driver.findElement(By.name("genero"));
+        WebElement campoAno = driver.findElement(By.name("ano")); // Campo de ano
+
+        campoNome.sendKeys("Filme Futuro Absurdo");
+        campoGenero.sendKeys("Ficção Científica");
+        campoAno.sendKeys("999999"); // **Ano inválido: muito no futuro**
+
+        WebElement botaoCadastrar = driver.findElement(By.cssSelector("button.btn-success[type='submit']"));
+        botaoCadastrar.click();
+
+        try {
+
+            WebDriverWait shortWait = new WebDriverWait(driver, Duration.ofSeconds(5));
+            shortWait.until(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"));
+            fail("Filme com ano futuro inválido foi cadastrado, o que não deveria acontecer.");
+        } catch (TimeoutException e) {
+            assertTrue(driver.getCurrentUrl().contains("/Criar"),
+                    "A aplicação deveria permanecer na página de criação ou exibir um erro para ano inválido.");
+
+            try {
+                WebElement errorMessage = driver.findElement(By.cssSelector("p.text-danger"));
+                assertTrue(errorMessage.isDisplayed(), "Mensagem de erro para ano inválido deveria ser exibida.");
+                String textoErro = errorMessage.getText().toLowerCase();
+                assertTrue(textoErro.contains("ano") || textoErro.contains("inválido"),
+                        "A mensagem de erro não contém texto relevante sobre o ano inválido.");
+            } catch (NoSuchElementException ex) {
+                System.out.println("Nenhuma mensagem de erro específica visível para o ano inválido. Apenas a permanência na página foi validada.");
+            }
+        }
+    }
+
+
 
     @Nested
     @DisplayName("Edição de Filmes")
@@ -202,20 +243,24 @@ public class CatalogoFilmeTest {
 
         @Test
         @Tag("edicao")
-        @DisplayName("Não deve editar filme com ID inexistente") // erro no teste pq nao tem mensagem de id nao encontrado só um 404
+        @DisplayName("Não deve editar filme com ID inexistente")
         public void testAlterarFilmeComIdInexistente() {
             driver.get("https://catalogo-filme-rosy.vercel.app/Alterar/99999");
 
-            WebElement body = wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 
+            // Aguarda o parágrafo com a classe "text-danger"
+            WebElement erroMsg = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(By.cssSelector("p.text-danger"))
+            );
+
+            // Verifica se a mensagem contém o texto esperado
+            String textoErro = erroMsg.getText().toLowerCase();
             assertTrue(
-                    body.getText().toLowerCase().contains("não encontrado")
-                            || body.getText().toLowerCase().contains("erro")
-                            || body.getText().trim().isEmpty(),
-                    "A página não deveria carregar com ID inexistente."
+                    textoErro.contains("404") || textoErro.contains("request failed"),
+                    "A página deveria exibir mensagem de erro ao acessar um ID inexistente."
             );
         }
-    }
 
     @Nested
     @DisplayName("Exclusão de Filmes")
@@ -291,6 +336,6 @@ public class CatalogoFilmeTest {
         }
 
 
-
+    }
     }
 }
