@@ -278,10 +278,16 @@ public class CatalogoFilmeTest {
         public void testExcluirSemID_DeveFalhar() {
             driver.get("https://catalogo-filme-rosy.vercel.app/Apagar/");  //nao vai permitir pois nao tem essa rota, somente se tiver item cadastrado
 
-            wait.until(ExpectedConditions.visibilityOfElementLocated(
-                    By.xpath("//h1[text()='Apagar Filme']")));
+            WebElement body = wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
+            String textoPagina = body.getText().toLowerCase();
 
-            fail("A página de exclusão não deveria carregar sem um ID.");
+            assertTrue(
+                    textoPagina.contains("erro")
+                            || textoPagina.contains("não encontrado")
+                            || textoPagina.contains("404")
+                            || textoPagina.isEmpty(),
+                    "A aplicação deveria exibir mensagem de erro ou redirecionar ao acessar /Apagar/ sem ID."
+            );
         }
 
 
