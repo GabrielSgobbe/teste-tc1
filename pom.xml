@@ -36,5 +36,13 @@
             <version>5.8.0</version>
         </dependency>
 
+        <!-- Java Faker -->
+        <dependency>
+            <groupId>net.datafaker</groupId>
+            <artifactId>datafaker</artifactId>
+            <version>2.1.0</version>
+        </dependency>
+
+
     </dependencies>
 </project>

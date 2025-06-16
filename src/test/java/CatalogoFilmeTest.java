@@ -1,4 +1,5 @@
 import io.github.bonigarcia.wdm.WebDriverManager;
+import net.datafaker.Faker;
 import org.junit.jupiter.api.*;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -15,12 +16,14 @@ public class CatalogoFilmeTest {
 
     private WebDriver driver;
     private WebDriverWait wait;
+    private Faker faker;
 
     @BeforeEach
     public void setup() {
         WebDriverManager.chromedriver().setup();
         driver = new ChromeDriver();
         wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        faker = new Faker();
     }
 
     @AfterEach
@@ -65,13 +68,12 @@ public class CatalogoFilmeTest {
         @DisplayName("Não deve permitir acessar rota de alteração sem ID")
         public void testAcessarAlterarSemId() {
             driver.get("https://catalogo-filme-rosy.vercel.app/Alterar/");
-
             WebElement body = wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
             String textoPagina = body.getText().toLowerCase();
 
-            assertTrue(textoPagina.contains("erro") || textoPagina.contains("not found") || textoPagina.contains("página não encontrada") || textoPagina.isEmpty(), "A aplicação deveria exibir uma mensagem de erro ou redirecionar ao acessar rota dinâmica sem ID.");
+            assertTrue(textoPagina.contains("erro") || textoPagina.contains("not found") || textoPagina.contains("página não encontrada") || textoPagina.isEmpty(),
+                    "A aplicação deveria exibir uma mensagem de erro ou redirecionar ao acessar rota dinâmica sem ID.");
         }
-
     }
 
     @Nested
@@ -88,16 +90,19 @@ public class CatalogoFilmeTest {
             WebElement campoGenero = driver.findElement(By.name("genero"));
             WebElement campoAno = driver.findElement(By.name("ano"));
 
-            campoNome.sendKeys("Filme de Teste");
-            campoGenero.sendKeys("Aventura");
-            campoAno.sendKeys("2025");
+
+            String nomeFilme = faker.lordOfTheRings().character() + " em " + faker.lordOfTheRings().location();
+            String generoFilme = faker.lordOfTheRings().location();
+
+            campoNome.sendKeys(nomeFilme);
+            campoGenero.sendKeys(generoFilme);
+            campoAno.sendKeys(String.valueOf(faker.number().numberBetween(1950, 2025)));
 
             driver.findElement(By.cssSelector("button.btn-success[type='submit']")).click();
 
             wait.until(ExpectedConditions.urlContains("/"));
             assertTrue(driver.getCurrentUrl().contains("/"), "Deveria redirecionar para a página inicial após criar o filme.");
         }
-
 
         @Test
         @Tag("criacao")
@@ -109,14 +114,20 @@ public class CatalogoFilmeTest {
             WebElement campoGenero = driver.findElement(By.name("genero"));
             WebElement campoAno = driver.findElement(By.name("ano"));
 
-            campoNome.sendKeys("Filme com Erro no Ano");
-            campoGenero.sendKeys("Drama");
+            String nomeFilme = faker.lordOfTheRings().character() + " em " + faker.lordOfTheRings().location();
+            String generoFilme = faker.lordOfTheRings().location();
+
+            campoNome.sendKeys(nomeFilme);
+            campoGenero.sendKeys(generoFilme);
             campoAno.sendKeys("a"); // navegador pode cortar ou impedir envio
 
             driver.findElement(By.cssSelector("button.btn-success[type='submit']")).click();
 
             // Espera 3 segundos e verifica que  nao redirecionou para a ppagina incial
-            boolean redirecionou = new WebDriverWait(driver, Duration.ofSeconds(3)).until(ExpectedConditions.or(ExpectedConditions.urlContains("/Criar"), ExpectedConditions.not(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"))));
+            boolean redirecionou = new WebDriverWait(driver, Duration.ofSeconds(3)).until(ExpectedConditions.or(
+                    ExpectedConditions.urlContains("/Criar"),
+                    ExpectedConditions.not(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"))
+            ));
 
             assertTrue(driver.getCurrentUrl().contains("/Criar"), "Deveria permanecer na página de criação com erro no campo ano.");
         }
@@ -131,9 +142,12 @@ public class CatalogoFilmeTest {
             WebElement campoGenero = driver.findElement(By.name("genero"));
             WebElement campoAno = driver.findElement(By.name("ano"));
 
-            campoNome.sendKeys("Filme Futuro Absurdo");
-            campoGenero.sendKeys("Ficção Científica");
-            campoAno.sendKeys("999999"); // valor absurdo
+            String nomeFilme = faker.lordOfTheRings().character() + " em " + faker.lordOfTheRings().location();
+            String generoFilme = faker.lordOfTheRings().location();
+
+            campoNome.sendKeys(nomeFilme);
+            campoGenero.sendKeys(generoFilme);
+            campoAno.sendKeys("999999");
 
             driver.findElement(By.cssSelector("button.btn-success[type='submit']")).click();
 
@@ -142,7 +156,6 @@ public class CatalogoFilmeTest {
 
             // verifica se tem alguma mensamge de erro explicida
             List<WebElement> mensagensErro = driver.findElements(By.cssSelector("p.text-danger"));
-
             assertFalse(mensagensErro.isEmpty(), "Deveria exibir uma mensagem de erro para ano inválido.");
 
             WebElement erro = mensagensErro.get(0);
@@ -150,10 +163,8 @@ public class CatalogoFilmeTest {
 
             assertTrue(erro.isDisplayed(), "Mensagem de erro deve estar visível.");
             assertTrue(texto.contains("ano") || texto.contains("inválido"), "Mensagem de erro não menciona claramente problema no ano.");
-
         }
     }
-
 
     @Nested
     @DisplayName("Edição de Filmes")
@@ -163,12 +174,11 @@ public class CatalogoFilmeTest {
         @Tag("edicao")
         @DisplayName("Deve editar um filme existente com sucesso")
         public void testEditarFilme() {
-            driver.get("https://catalogo-filme-rosy.vercel.app/Alterar/2"); //so funciona se colocar o id manual
+            driver.get("https://catalogo-filme-rosy.vercel.app/Alterar/2");
 
-            WebElement campoId = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("idFilme")));
+            WebElement campoId = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("idFilme"))); //so funciona se colocar o id manual
             campoId.clear();
-            campoId.sendKeys("2");
-            ;// aqui tbm o id do item
+            campoId.sendKeys("2"); // aqui tbm o id do item
 
             wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[contains(text(), 'Procurar')]"))).click();
 
@@ -176,15 +186,17 @@ public class CatalogoFilmeTest {
             WebElement campoGenero = driver.findElement(By.name("genero"));
             WebElement campoAno = driver.findElement(By.name("ano"));
 
+            String nomeFilme = faker.lordOfTheRings().character() + " em " + faker.lordOfTheRings().location();
+            String generoFilme = faker.lordOfTheRings().location();
+
             campoNome.clear();
-            campoNome.sendKeys("Filme Editado");
+            campoNome.sendKeys(nomeFilme);
             campoGenero.clear();
-            campoGenero.sendKeys("Drama");
+            campoGenero.sendKeys(generoFilme);
             campoAno.clear();
-            campoAno.sendKeys("1999");
+            campoAno.sendKeys(String.valueOf(faker.number().numberBetween(1950, 2025)));
 
             driver.findElement(By.xpath("//button[contains(text(), 'Alterar')]")).click();
-
 
             //Espera até que o alert esteja presente
             Alert alert = wait.until(ExpectedConditions.alertIsPresent());
@@ -195,12 +207,8 @@ public class CatalogoFilmeTest {
 
             //Verifica se o texto contém algumas das plavras
             assertTrue(textoAlert.contains("sucesso") || textoAlert.contains("editado"));
-
-
             alert.accept();
-
         }
-
 
         @Test
         @Tag("edicao")
@@ -209,7 +217,6 @@ public class CatalogoFilmeTest {
             driver.get("https://catalogo-filme-rosy.vercel.app/Alterar/99999");
 
             WebElement campoId = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("idFilme")));
-
             assertEquals("99999", campoId.getAttribute("value"), "Campo ID deveria conter 99999.");
 
             WebElement botaoProcurar = wait.until(
@@ -236,12 +243,14 @@ public class CatalogoFilmeTest {
             @Tag("exclusao")
             @DisplayName("Deve criar e excluir um filme com sucesso")
             public void testCriarEExcluirFilme() {
-                driver.get("https://catalogo-filme-rosy.vercel.app/Criar"); //forma de criar e editar um filme
+                driver.get("https://catalogo-filme-rosy.vercel.app/Criar"); //forma de criar e excluir um filme
 
-                String tituloFilme = "AutoTeste_" + System.currentTimeMillis();
+                String tituloFilme = faker.lordOfTheRings().character() + "_" + System.currentTimeMillis();
+                String generoFilme = faker.lordOfTheRings().location();
+
                 driver.findElement(By.name("nome")).sendKeys(tituloFilme);
-                driver.findElement(By.name("genero")).sendKeys("Teste");
-                driver.findElement(By.name("ano")).sendKeys("2025");
+                driver.findElement(By.name("genero")).sendKeys(generoFilme);
+                driver.findElement(By.name("ano")).sendKeys(String.valueOf(faker.number().numberBetween(1980, 2025)));
 
                 driver.findElement(By.cssSelector("button.btn-success[type='submit']")).click();
                 wait.until(ExpectedConditions.urlToBe("https://catalogo-filme-rosy.vercel.app/"));
@@ -287,12 +296,13 @@ public class CatalogoFilmeTest {
             @Tag("validacao")
             @DisplayName("Não deve permitir exclusão sem fornecer ID")
             public void testExcluirSemID_DeveFalhar() {
-                driver.get("https://catalogo-filme-rosy.vercel.app/Apagar/");  //nao vai permitir pois nao tem essa rota, somente se tiver item cadastrado
+                driver.get("https://catalogo-filme-rosy.vercel.app/Apagar/"); //nao vai permitir pois nao tem essa rota, somente se tiver item cadastrado
 
                 WebElement body = wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
                 String textoPagina = body.getText().toLowerCase();
 
-                assertTrue(textoPagina.contains("erro") || textoPagina.contains("não encontrado") || textoPagina.contains("404") || textoPagina.isEmpty(), "A aplicação deveria exibir mensagem de erro ou redirecionar ao acessar /Apagar/ sem ID.");
+                assertTrue(textoPagina.contains("erro") || textoPagina.contains("não encontrado") || textoPagina.contains("404") || textoPagina.isEmpty(),
+                        "A aplicação deveria exibir mensagem de erro ou redirecionar ao acessar /Apagar/ sem ID.");
             }
         }
     }
